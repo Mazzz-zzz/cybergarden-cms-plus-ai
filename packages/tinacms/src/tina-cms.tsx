@@ -79,7 +79,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps> {
                 '0 6px 24px rgb(0 37 91 / 5%), 0 2px 4px rgb(0 37 91 / 3%)',
             }}
           >
-            <h3 style={{ color: '#eb6337' }}>TinaCMS Render Error</h3>
+            <h3 style={{ color: '#eb6337' }}>CG-CMS Render Error</h3>
             <p>Tina caught an error while updating the page:</p>
             <pre style={{ marginTop: '1rem', overflowX: 'auto' }}>
               {/* @ts-ignore */}
@@ -153,11 +153,11 @@ export const TinaCMSProvider2 = ({
   const { branch, clientId, isLocalClient } = apiURL
     ? parseURL(apiURL)
     : {
-        branch: props.branch,
-        clientId: props.clientId,
-        // @ts-expect-error this is for backwards compatibility
-        isLocalClient: props?.isLocalClient,
-      };
+      branch: props.branch,
+      clientId: props.clientId,
+      // @ts-expect-error this is for backwards compatibility
+      isLocalClient: props?.isLocalClient,
+    };
   if (
     // Check if local client is defined
     typeof isLocalClient === 'undefined' ||

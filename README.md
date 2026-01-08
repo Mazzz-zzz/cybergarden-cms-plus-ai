@@ -2,6 +2,64 @@
 [![npm version](https://img.shields.io/npm/v/tinacms.svg?style=flat)](https://www.npmjs.com/package/tinacms)
 [![Build, Test, Lint for Main](https://github.com/tinacms/tinacms/actions/workflows/main.yml/badge.svg?branch=main&event=push)](https://github.com/tinacms/tinacms/actions/workflows/main.yml)
 
+# CG FORGED TINA
+
+This is a forked version of TinaCMS repository, customized for CyberGarden.
+It includes rebranding changes to display "CG-CMS" instead of "TinaCMS" in the admin interface.
+
+## Rebranding Changes
+- **Icon:** The TinaCMS logo has been replaced with a "CG" text icon in `packages/tinacms/src/toolkit/icons/Tina.tsx`.
+- **Text:** "TinaCMS" text has been replaced with "CG-CMS" in various components.
+
+## Admin UI Customizations
+- **Chatbot:** Floating chatbot button + iframe window in `packages/tinacms/src/admin/components/Chatbot.tsx` and rendered in `packages/tinacms/src/admin/components/Layout.tsx`.
+- **Version Label:** Sidebar footer label updated in `packages/tinacms/src/toolkit/react-sidebar/components/VersionInfo.tsx`.
+- **Post Field Hints:** Fallback descriptions for blog post fields in `packages/tinacms/src/toolkit/fields/plugins/wrap-field-with-meta.tsx`.
+
+## Building Local Package
+To use this modified version in your project:
+
+1. **Install Dependencies:**
+   ```bash
+   pnpm install
+   ```
+
+2. **Build the Package:**
+   ```bash
+   pnpm exec turbo run build --filter=tinacms
+   ```
+
+3. **Pack the Package:**
+   Navigate to the package directory and create a tarball:
+   ```bash
+   cd packages/tinacms
+   pnpm pack
+   ```
+   This will generate a file like `tinacms-3.2.0.tgz`.
+
+4. **Use in Project:**
+   Point your project's `tinacms` dependency to this file (see `cg-tina-template` documentation).
+
+## Linked Local Dev (No Repack Loop)
+For faster iteration with the template project:
+
+1. In `cg-tina-template`, link the package:
+   ```bash
+   pnpm add tinacms@link:../cg-forged-tina/packages/tinacms
+   ```
+2. In `cg-forged-tina`, run the build watcher:
+   ```bash
+   pnpm --filter @tinacms/scripts run watch
+   ```
+3. Keep `pnpm dev` running in `cg-tina-template` and refresh the admin UI.
+
+If the CLI/metrics packages are linked and missing `dist/`, run:
+```bash
+pnpm --filter @tinacms/cli run build
+pnpm --filter @tinacms/metrics run build
+```
+
+---
 # [![TINA CMS](https://res.cloudinary.com/forestry-demo/image/upload/c_scale,w_400/v1694189357/tina-brand-assets/logos/png/Logo_Full_-_Default.png 'Visit tinacms.org')](https://tina.io)
 
 [![Tina Demo](https://res.cloudinary.com/forestry-demo/video/upload/du_16,w_700,e_loop/tina-io/new-homepage/homepage-demo-2.gif)](https://tina.io/)

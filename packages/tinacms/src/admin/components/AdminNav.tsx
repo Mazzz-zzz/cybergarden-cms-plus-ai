@@ -69,7 +69,9 @@ const Sidebar = ({ cms }: { cms: TinaCMS }) => {
           Icon={ImUsers}
         />
       )}
-    />
+    >
+      <div className='px-6 pt-4 text-sm text-gray-500'>hello world</div>
+    </Nav>
   );
 };
 

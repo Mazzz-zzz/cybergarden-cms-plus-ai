@@ -12,7 +12,7 @@ export const VersionInfo = () => {
 
   return (
     <span className='font-sans font-light text-xs mb-3 mt-4 text-gray-500'>
-      TinaCMS v{currentVersion + ' '}
+      TinaCMS MODIFIED v{currentVersion + ' '}
       {!optOutOfUpdateCheck && <LatestVersionCheck />}
     </span>
   );
@@ -53,8 +53,8 @@ const LatestVersionWarning = ({
   const latestVersion = latestVersionInfo['tinacms']?.version;
   const relativePublishedAt = latestVersionInfo.tinacms?.publishedAt
     ? formatDistanceToNow(new Date(latestVersionInfo.tinacms?.publishedAt), {
-        addSuffix: true,
-      })
+      addSuffix: true,
+    })
     : '';
 
   if (!latestVersion) {

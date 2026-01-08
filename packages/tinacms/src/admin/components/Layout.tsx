@@ -3,6 +3,7 @@
 */
 
 import React from 'react';
+import Chatbot from './Chatbot';
 
 const Layout = ({ children }: { children: any }) => {
   return (
@@ -21,6 +22,7 @@ const Layout = ({ children }: { children: any }) => {
         }}
       >
         {children}
+        <Chatbot />
       </div>
     </>
   );

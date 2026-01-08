@@ -5,6 +5,58 @@ import { FieldHoverEvent, FieldFocusEvent } from '@toolkit/fields/field-events';
 import { Form, Field } from '@toolkit/forms';
 import { useCMS } from '@toolkit/react-core';
 
+const BLOG_POST_FIELD_DESCRIPTIONS: Record<string, string> = {
+  title: 'Short, clear headline for the post.',
+  heroImg: 'Optional cover image for the post.',
+  excerpt: '1-2 sentence summary shown in listings.',
+  author: 'Select the author of this post.',
+  date: 'Date shown on the post.',
+  tags: 'Add one or more tags for this post.',
+  _body: 'Main content of the post.',
+};
+
+const BLOG_POST_LABEL_DESCRIPTIONS: Record<string, string> = {
+  Title: 'Short, clear headline for the post.',
+  'Hero Image': 'Optional cover image for the post.',
+  Excerpt: '1-2 sentence summary shown in listings.',
+  Author: 'Select the author of this post.',
+  'Posted Date': 'Date shown on the post.',
+  Tags: 'Add one or more tags for this post.',
+  Body: 'Main content of the post.',
+};
+
+const isPostForm = (tinaForm?: Form) => {
+  const formHints = [tinaForm?.path, tinaForm?.relativePath, tinaForm?.id]
+    .filter((value) => typeof value === 'string')
+    .join(' ');
+  return /content\/posts|\/posts\//.test(formHints);
+};
+
+const getFallbackDescription = ({
+  field,
+  label,
+  name,
+  tinaForm,
+}: {
+  field?: Field;
+  label?: string | boolean;
+  name: string;
+  tinaForm?: Form;
+}) => {
+  if (!isPostForm(tinaForm)) return undefined;
+
+  const fieldName = field?.name || name;
+  if (fieldName && BLOG_POST_FIELD_DESCRIPTIONS[fieldName]) {
+    return BLOG_POST_FIELD_DESCRIPTIONS[fieldName];
+  }
+
+  if (typeof label === 'string' && BLOG_POST_LABEL_DESCRIPTIONS[label]) {
+    return BLOG_POST_LABEL_DESCRIPTIONS[label];
+  }
+
+  return undefined;
+};
+
 export type InputFieldType<ExtraFieldProps, InputProps> =
   FieldProps<InputProps> & ExtraFieldProps;
 
@@ -123,6 +175,11 @@ export const FieldMeta = ({
 
   const isActive = !!focusIntent;
   const isHovering = !!hoverIntent;
+  const fallbackDescription =
+    description || label === false
+      ? undefined
+      : getFallbackDescription({ field, label, name, tinaForm });
+  const resolvedDescription = description ?? fallbackDescription;
 
   const handleClick = () => {
     // Check if this field is already active - if so, don't toggle it off
@@ -155,10 +212,12 @@ export const FieldMeta = ({
       data-tina-field-hovering={isHovering ? 'true' : undefined}
       {...props}
     >
-      {(label !== false || description) && (
+      {(label !== false || resolvedDescription) && (
         <FieldLabel name={name}>
           {label !== false && <>{label || name}</>}
-          {description && <FieldDescription>{description}</FieldDescription>}
+          {resolvedDescription && (
+            <FieldDescription>{resolvedDescription}</FieldDescription>
+          )}
         </FieldLabel>
       )}
       {children}

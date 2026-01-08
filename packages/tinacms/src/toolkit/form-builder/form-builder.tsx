@@ -19,6 +19,7 @@ import { FormPortalProvider } from './form-portal';
 import { LoadingDots } from './loading-dots';
 import { ResetForm } from './reset-form';
 import { CreateBranchModal } from './create-branch-modal';
+import { EmbeddedChatbot } from './EmbeddedChatbot';
 
 export interface FormBuilderProps {
   form: {
@@ -209,12 +210,15 @@ export const FormBuilder: FC<FormBuilderProps> = ({
               <FormPortalProvider>
                 <FormWrapper id={tinaForm.id}>
                   {tinaForm?.fields.length ? (
-                    <FieldsBuilder
-                      form={tinaForm}
-                      activeFieldName={form.activeFieldName}
-                      hoveringFieldName={form.hoveringFieldName}
-                      fields={fieldGroup.fields}
-                    />
+                    <>
+                      <EmbeddedChatbot />
+                      <FieldsBuilder
+                        form={tinaForm}
+                        hoveringFieldName={form.hoveringFieldName}
+                        fields={fieldGroup.fields}
+                      />
+                      <EmbeddedChatbot />
+                    </>
                   ) : (
                     <NoFieldsPlaceholder />
                   )}
@@ -252,11 +256,11 @@ export const FormBuilder: FC<FormBuilderProps> = ({
                   </div>
                 </div>
               )}
-            </DragDropContext>
+            </DragDropContext >
           </>
         );
       }}
-    </FinalForm>
+    </FinalForm >
   );
 };
 

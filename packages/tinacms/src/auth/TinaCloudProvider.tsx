@@ -32,7 +32,7 @@ function sleep(ms: number) {
 }
 
 export interface TinaCloudMediaStoreClass {
-  new (client: Client): MediaStore;
+  new(client: Client): MediaStore;
 }
 export interface TinaCloudAuthWallProps {
   cms?: TinaCMS;
@@ -42,8 +42,8 @@ export interface TinaCloudAuthWallProps {
     closeModal: () => void;
   }) => { name: string; action: () => Promise<void>; primary: boolean }[];
   mediaStore?:
-    | TinaCloudMediaStoreClass
-    | (() => Promise<TinaCloudMediaStoreClass>);
+  | TinaCloudMediaStoreClass
+  | (() => Promise<TinaCloudMediaStoreClass>);
 }
 
 const AuthWallInner = ({
@@ -133,10 +133,10 @@ const AuthWallInner = ({
 
   const otherModalActions = getModalActions
     ? getModalActions({
-        closeModal: () => {
-          setActiveModal(null);
-        },
-      })
+      closeModal: () => {
+        setActiveModal(null);
+      },
+    })
     : [];
 
   const handleAuthenticate = async (
@@ -161,7 +161,7 @@ const AuthWallInner = ({
     }
   };
 
-  let modalTitle = 'Let’s get you editing with TinaCMS...';
+  let modalTitle = 'Let’s get you editing with CG-CMS...';
   if (
     activeModal === 'authenticate' &&
     loginStrategy === 'Redirect' &&
@@ -172,12 +172,12 @@ const AuthWallInner = ({
     activeModal === 'authenticate' &&
     loginStrategy === 'UsernamePassword'
   ) {
-    modalTitle = 'Let’s get you editing with TinaCMS...';
+    modalTitle = 'Let’s get you editing with CG-CMS...';
   } else if (activeModal === 'error') {
     if (loginStrategy === 'Redirect' && !isTinaCloud) {
       modalTitle = 'Enter into edit mode';
     } else if (loginStrategy === 'UsernamePassword') {
-      modalTitle = 'Let’s get you editing with TinaCMS...';
+      modalTitle = 'Let’s get you editing with CG-CMS...';
     }
   }
 
@@ -190,7 +190,7 @@ const AuthWallInner = ({
             isTinaCloud ? (
               <img
                 src={loginLlama}
-                alt='TinaCMS Security Illustration'
+                alt='CG-CMS Security Illustration'
                 style={{ maxWidth: '100%', margin: '0 auto', display: 'block' }}
               />
             ) : (
@@ -303,11 +303,11 @@ const AuthWallInner = ({
       {showChildren
         ? children
         : client.authProvider?.getLoginStrategy() === 'LoginScreen' &&
-            loginScreen
+          loginScreen
           ? loginScreen({
-              handleAuthenticate: async (props: Record<string, string>) =>
-                handleAuthenticate(props),
-            })
+            handleAuthenticate: async (props: Record<string, string>) =>
+              handleAuthenticate(props),
+          })
           : null}
     </>
   );
