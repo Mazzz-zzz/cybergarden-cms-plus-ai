@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Add a draggable EmbeddedChatbot overlay in the preview iframe wrapper. Update the EmbeddedChatbot UI to use the existing shadcn-like design tokens/components (Input/Button) with a black/white palette, add admin-driven context chips sourced from form fields, introduce an AI Settings screen in the admin menu, and support storing an OpenRouter API key in the browser for chatbot use.
+- Add a draggable EmbeddedChatbot overlay in the preview iframe wrapper. Update the EmbeddedChatbot UI to use the existing shadcn-like design tokens/components (Input/Button) with a black/white palette, add admin-driven context chips sourced from form fields, introduce an AI Settings screen in the admin menu, add client-side OpenRouter API key storage and live model list selection, and wire the chatbot to an assistant-ui powered chat runtime.
 
 ## 3.2.0
 

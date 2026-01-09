@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@ariakit/react": "catalog:",
+    "@assistant-ui/react": "^0.11.53",
     "@dnd-kit/core": "catalog:",
     "@dnd-kit/sortable": "catalog:",
     "@dnd-kit/utilities": "catalog:",
