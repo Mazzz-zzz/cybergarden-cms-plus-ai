@@ -14,16 +14,20 @@ import { FloatingToolbar } from './components/plate-ui/floating-toolbar';
 import FloatingToolbarButtons from './components/floating-toolbar-buttons';
 
 export const RichEditor = ({ input, tinaForm, field }: RichTextType) => {
-  const initialValue = React.useMemo(() => {
-    if (field?.parser?.type === 'slatejson') {
-      return input.value.children;
-    } else if (input.value?.children?.length) {
-      const normalized = input.value.children.map(helpers.normalize);
-      return normalized;
-    } else {
+  const getPlateValue = React.useCallback(
+    (value: any) => {
+      if (field?.parser?.type === 'slatejson') {
+        if (value?.children?.length) return value.children;
+      } else if (value?.children?.length) {
+        return value.children.map(helpers.normalize);
+      }
+
       return [{ type: 'p', children: [{ type: 'text', text: '' }] }];
-    }
-  }, []);
+    },
+    [field?.parser?.type]
+  );
+
+  const initialValue = React.useMemo(() => getPlateValue(input.value), []);
 
   //TODO try with a wrapper?
   const editor = useCreateEditor({
@@ -31,6 +35,29 @@ export const RichEditor = ({ input, tinaForm, field }: RichTextType) => {
     value: initialValue,
     components: Components(),
   });
+
+  React.useEffect(() => {
+    if (!editor) return;
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.fieldName === input.name) {
+        // Force the editor to update with the new value from props
+        // We use the fresh input.value which should be updated by final-form by now (or in next render)
+        // But since this event is deferred, input.value might be stale in this closure if dependencies don't update?
+        // Actually, react-change will trigger re-render, updating input.value.
+        // But we need to APPLY it to editor.children.
+        const nextValue = getPlateValue(input.value) as any;
+        editor.children = nextValue;
+        // Force update UI
+        (editor as any).onChange?.();
+      }
+    };
+
+    window.addEventListener('tinacms-external-field-update', handler);
+    return () =>
+      window.removeEventListener('tinacms-external-field-update', handler);
+  }, [editor, input.name, input.value, getPlateValue]);
 
   // This should be a plugin customization
   const ref = React.useRef<HTMLDivElement>(null);
@@ -61,6 +88,8 @@ export const RichEditor = ({ input, tinaForm, field }: RichTextType) => {
           const normalized = (value.value as any[]).map(
             normalizeLinksInCodeBlocks
           );
+
+
 
           input.onChange({
             type: 'root',

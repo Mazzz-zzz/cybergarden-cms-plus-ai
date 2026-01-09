@@ -7,9 +7,12 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
   useLocalRuntime,
+  useAssistantState,
   type ChatModelAdapter,
   type ThreadMessage,
 } from '@assistant-ui/react';
+import DiffMatchPatch from 'diff-match-patch';
+import { Button } from '@toolkit/components/ui/button';
 import { cn } from '../../utils/cn';
 
 export type EmbeddedChatbotContext = {
@@ -17,6 +20,8 @@ export type EmbeddedChatbotContext = {
   label: string;
   description?: string;
   value?: unknown;
+  fieldName?: string;
+  valueType?: 'text' | 'json';
 };
 
 type EmbeddedChatbotProps = {
@@ -47,15 +52,21 @@ const buildSystemPrompt = (
   context: EmbeddedChatbotContext | undefined,
   preview: string
 ) => {
-  const base = 'You are a helpful TinaCMS editing assistant.';
+  const base =
+    'You are a helpful TinaCMS editing assistant. When the user asks to edit the selected context, respond with only the revised content (no commentary).';
   if (!context) return base;
   const clipped = preview
     ? preview.slice(0, MAX_CONTEXT_CHARS)
     : 'No content available.';
+  const jsonHint =
+    typeof context.value !== 'string'
+      ? 'If the content is JSON, return valid JSON only.'
+      : '';
   return [
     base,
     `Context source: ${context.label}.`,
     context.description ? `Description: ${context.description}` : '',
+    jsonHint,
     `Content:\n${clipped}`,
   ]
     .filter(Boolean)
@@ -84,6 +95,56 @@ const toOpenRouterMessages = (
   return mapped;
 };
 
+const getMessageText = (message: ThreadMessage) => {
+  return message.content
+    .map((part) => (part.type === 'text' ? part.text : ''))
+    .join('')
+    .trim();
+};
+
+type ChatbotApplyPayload = {
+  fieldName: string;
+  patchText: string;
+  proposedText: string;
+  valueType: 'text' | 'json';
+};
+
+const dispatchChatbotApply = (payload: ChatbotApplyPayload) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('tinacms-chatbot-apply-context', { detail: payload })
+  );
+};
+
+const extractProposedText = (text: string) => {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  return (fenced ? fenced[1] : text).trim();
+};
+
+const serializeContextValue = (value: unknown) => {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value ?? '');
+  }
+};
+
+const normalizeJsonCandidate = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  const firstBrace = trimmed.indexOf('{');
+  const firstBracket = trimmed.indexOf('[');
+  const hasBrace =
+    firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket);
+  const start = hasBrace ? firstBrace : firstBracket;
+  if (start === -1) return trimmed;
+  const endChar = hasBrace ? '}' : ']';
+  const end = trimmed.lastIndexOf(endChar);
+  if (end === -1) return trimmed;
+  return trimmed.slice(start, end + 1);
+};
+
 const UserMessage = () => (
   <MessagePrimitive.Root className='flex justify-end'>
     <div className='max-w-[85%] rounded-lg bg-foreground px-3 py-2 text-sm text-background'>
@@ -99,6 +160,119 @@ const AssistantMessage = () => (
     </div>
   </MessagePrimitive.Root>
 );
+
+type ChatApplyActionsProps = {
+  context?: EmbeddedChatbotContext;
+  currentValue?: unknown;
+};
+
+const getLatestAssistantText = (
+  messages: readonly ThreadMessage[],
+  valueType?: 'text' | 'json'
+) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'assistant') continue;
+    const text = extractProposedText(getMessageText(message));
+    if (!text) continue;
+    if (valueType === 'json') {
+      try {
+        JSON.parse(normalizeJsonCandidate(text));
+        return text;
+      } catch {
+        continue;
+      }
+    }
+    return text;
+  }
+  return '';
+};
+
+const ChatApplyActions = ({ context, currentValue }: ChatApplyActionsProps) => {
+  const messages = useAssistantState(({ thread }) => thread.messages);
+  const lastAssistantText = React.useMemo(
+    () => getLatestAssistantText(messages, context?.valueType),
+    [messages, context?.valueType]
+  );
+
+  const [patchText, setPatchText] = React.useState<string | null>(null);
+  const [proposedText, setProposedText] = React.useState('');
+  const [applyError, setApplyError] = React.useState('');
+
+  React.useEffect(() => {
+    if (!context?.fieldName || currentValue === undefined) {
+      setPatchText(null);
+      setProposedText('');
+      setApplyError('');
+      return;
+    }
+    if (!lastAssistantText) {
+      setPatchText(null);
+      setProposedText('');
+      setApplyError('');
+      return;
+    }
+    const sourceText = serializeContextValue(currentValue);
+    const proposed = extractProposedText(lastAssistantText);
+    if (!sourceText || !proposed) {
+      setPatchText(null);
+      setProposedText('');
+      setApplyError('');
+      return;
+    }
+    if (context.valueType === 'json') {
+      try {
+        const candidate = normalizeJsonCandidate(proposed);
+        JSON.parse(candidate);
+      } catch {
+        setPatchText(null);
+        setProposedText('');
+        setApplyError('Assistant response is not valid JSON.');
+        return;
+      }
+    }
+    const dmp = new DiffMatchPatch();
+    const patches = dmp.patch_make(sourceText, proposed);
+    const text = dmp.patch_toText(patches);
+    setPatchText(text);
+    setProposedText(proposed);
+    setApplyError('');
+  }, [context?.fieldName, currentValue, lastAssistantText]);
+
+  const canApply = Boolean(context?.fieldName && patchText && proposedText);
+  const valueType =
+    context?.valueType || (typeof currentValue === 'string' ? 'text' : 'json');
+
+  if (!canApply || !context) return null;
+
+  return (
+    <div className='mt-2 flex flex-col gap-1.5'>
+      <div className='flex items-center gap-2'>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          onClick={() =>
+            dispatchChatbotApply({
+              fieldName: context.fieldName!,
+              patchText: patchText!,
+              proposedText,
+              valueType,
+            })
+          }
+        >
+          Apply to {context.label}
+        </Button>
+        <span className='text-[11px] text-muted-foreground'>
+          Updates the {context.label} field on the left.
+        </span>
+      </div>
+      {applyError ? (
+        <span className='text-[11px] text-red-600'>{applyError}</span>
+      ) : null}
+    </div>
+  );
+};
 
 export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
   const [selectedId, setSelectedId] = React.useState<string | undefined>(
@@ -319,6 +493,14 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                 <BiSend className='h-4 w-4' />
               </ComposerPrimitive.Send>
             </ComposerPrimitive.Root>
+            <ChatApplyActions
+              context={selectedContext}
+              currentValue={
+                selectedContext?.value !== undefined
+                  ? selectedContext.value
+                  : undefined
+              }
+            />
             {!canSend ? (
               <p className='mt-2 text-[11px] text-muted-foreground'>
                 Add an OpenRouter API key in AI Settings to enable chat.

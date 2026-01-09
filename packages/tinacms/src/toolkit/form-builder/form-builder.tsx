@@ -13,6 +13,7 @@ import { BiError, BiGitBranch } from 'react-icons/bi';
 import { FaCircle } from 'react-icons/fa';
 import { cn } from '../../utils/cn';
 import { useCMS } from '../react-core';
+import DiffMatchPatch from 'diff-match-patch';
 import { FieldsBuilder } from './fields-builder';
 import { FormActionMenu } from './form-actions';
 import { FormPortalProvider } from './form-portal';
@@ -145,6 +146,99 @@ const getValueAtPath = (values: Record<string, any>, path: string) => {
   }, values);
 };
 
+type ChatbotApplyDetail = {
+  fieldName: string;
+  patchText: string;
+  proposedText?: string;
+  valueType?: 'text' | 'json';
+};
+
+const applyPatchToValue = (
+  currentValue: string,
+  patchText: string,
+  proposedText?: string
+) => {
+  const dmp = new DiffMatchPatch();
+  const patches = dmp.patch_fromText(patchText);
+  const [result, applied] = dmp.patch_apply(patches, currentValue);
+  if (applied.every(Boolean)) {
+    return result;
+  }
+  return typeof proposedText === 'string' ? proposedText : currentValue;
+};
+
+const coercePatchedValue = (
+  currentValue: unknown,
+  patchedText: string,
+  proposedText: string | undefined,
+  valueType?: 'text' | 'json'
+) => {
+  if (typeof currentValue === 'string' && valueType !== 'json') {
+    return patchedText;
+  }
+  const candidate = patchedText || proposedText;
+  if (typeof candidate !== 'string') return currentValue;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return currentValue;
+  }
+};
+
+const ChatbotContextApplier = ({
+  finalForm,
+  values,
+}: {
+  finalForm: Form['finalForm'];
+  values: Record<string, any>;
+}) => {
+  const valuesRef = React.useRef(values);
+
+  React.useEffect(() => {
+    valuesRef.current = values;
+  }, [values]);
+
+  React.useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<ChatbotApplyDetail>).detail;
+      if (!detail?.fieldName || !detail?.patchText) return;
+      const currentValue = getValueAtPath(valuesRef.current, detail.fieldName);
+      if (currentValue === undefined || currentValue === null) return;
+      const sourceText =
+        typeof currentValue === 'string'
+          ? currentValue
+          : JSON.stringify(currentValue, null, 2);
+      const patchedText = applyPatchToValue(
+        sourceText,
+        detail.patchText,
+        detail.proposedText
+      );
+      const nextValue = coercePatchedValue(
+        currentValue,
+        patchedText,
+        detail.proposedText,
+        detail.valueType
+      );
+      if (nextValue !== currentValue) {
+        finalForm.change(detail.fieldName, nextValue);
+        // Defer dispatch to allow final-form to update state
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('tinacms-external-field-update', {
+              detail: { fieldName: detail.fieldName },
+            })
+          );
+        }, 0);
+      }
+    };
+    window.addEventListener('tinacms-chatbot-apply-context', handler);
+    return () =>
+      window.removeEventListener('tinacms-chatbot-apply-context', handler);
+  }, [finalForm]);
+
+  return null;
+};
+
 const buildChatbotContexts = (
   fields: Field[] | undefined,
   values: Record<string, any>
@@ -176,6 +270,11 @@ const buildChatbotContexts = (
         label: candidate.label,
         description: field?.description || candidate.description,
         value,
+        fieldName: field?.name,
+        valueType:
+          field?.type === 'rich-text' || field?.type === 'object'
+            ? 'json'
+            : 'text',
       });
     }
   });
@@ -314,6 +413,10 @@ export const FormBuilder: FC<FormBuilderProps> = ({
                 close={() => setCreateBranchModalOpen(false)}
               />
             )}
+            <ChatbotContextApplier
+              finalForm={finalForm}
+              values={(values as Record<string, any>) ?? {}}
+            />
             <DragDropContext onDragEnd={moveArrayItem}>
               <FormKeyBindings onSubmit={safeHandleSubmit} />
               <FormPortalProvider>
