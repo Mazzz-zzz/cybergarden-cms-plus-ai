@@ -1,31 +1,130 @@
 
 import React from 'react';
 import { BiSend } from 'react-icons/bi';
+import { Button } from '@toolkit/components/ui/button';
+import { Input } from '@toolkit/components/ui/input';
+import { cn } from '../../utils/cn';
 
-export const EmbeddedChatbot = () => {
-    console.log('EmbeddedChatbot rendering');
+export type EmbeddedChatbotContext = {
+    id: string;
+    label: string;
+    description?: string;
+    value?: unknown;
+};
+
+type EmbeddedChatbotProps = {
+    contexts?: EmbeddedChatbotContext[];
+};
+
+const formatContextValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+};
+
+export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
+    const [selectedId, setSelectedId] = React.useState<string | undefined>(
+        contexts[0]?.id
+    );
+
+    React.useEffect(() => {
+        if (!contexts.length) return;
+        if (!selectedId || !contexts.some((item) => item.id === selectedId)) {
+            setSelectedId(contexts[0].id);
+        }
+    }, [contexts, selectedId]);
+
+    const selectedContext = contexts.find((item) => item.id === selectedId);
+    const preview = formatContextValue(selectedContext?.value);
+
     return (
-        <div className="border-4 border-red-500 bg-red-100 p-4 my-4">
-            <div className="mb-3">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
-                    CG-CMS AI Assistant
-                </h4>
-                <div className="bg-gray-50 rounded p-2 text-sm text-gray-600 mb-2 border border-gray-100 min-h-[60px] max-h-[150px] overflow-y-auto">
-                    <p>How can I help you edit your content?</p>
+        <div
+            className={cn(
+                'w-[320px] rounded-b-xl rounded-tl-none rounded-tr-xl border border-border bg-background text-foreground shadow-sm',
+                'overflow-hidden'
+            )}
+        >
+            <div className='flex items-center justify-between border-b border-border px-4 py-3'>
+                <div>
+                    <p className='text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground'>
+                        CG-CMS
+                    </p>
+                    <p className='text-sm font-medium text-foreground'>
+                        AI Assistant
+                    </p>
                 </div>
+                <span className='text-[11px] text-muted-foreground'>Beta</span>
             </div>
-            <div className="flex gap-2">
-                <input
-                    type="text"
-                    placeholder="Ask AI..."
-                    className="flex-1 min-w-0 rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
-                <button
-                    className="bg-blue-600 text-white rounded px-3 py-2 hover:bg-blue-700 transition-colors flex items-center justify-center"
-                    title="Send"
-                >
-                    <BiSend className="w-4 h-4" />
-                </button>
+            {contexts.length ? (
+                <div className='px-4 pt-3'>
+                    <p className='text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground'>
+                        Context
+                    </p>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                        {contexts.map((item) => {
+                            const isActive = item.id === selectedId;
+                            return (
+                                <button
+                                    key={item.id}
+                                    type='button'
+                                    onClick={() => setSelectedId(item.id)}
+                                    aria-pressed={isActive}
+                                    className={cn(
+                                        'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                                        isActive
+                                            ? 'border-foreground bg-foreground text-background'
+                                            : 'border-border bg-background text-foreground hover:bg-muted'
+                                    )}
+                                >
+                                    {item.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : null}
+            <div className='px-4 py-3'>
+                <div className='rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground'>
+                    {selectedContext ? (
+                        <>
+                            <p className='text-xs font-semibold text-foreground'>
+                                {selectedContext.label}
+                            </p>
+                            {selectedContext.description ? (
+                                <p className='mt-1 text-xs text-muted-foreground'>
+                                    {selectedContext.description}
+                                </p>
+                            ) : null}
+                            <div className='mt-2 max-h-[72px] overflow-hidden text-xs text-foreground/80'>
+                                {preview || 'No content available.'}
+                            </div>
+                        </>
+                    ) : (
+                        <span>No context selected.</span>
+                    )}
+                </div>
+                <div className='mt-3 flex items-center gap-2'>
+                    <Input
+                        type='text'
+                        placeholder='Ask AI...'
+                        className='h-9 text-sm'
+                    />
+                    <Button
+                        type='button'
+                        className='h-9 w-9 shrink-0 bg-foreground text-background hover:bg-foreground/90'
+                        aria-label='Send message'
+                    >
+                        <BiSend className='h-4 w-4' />
+                    </Button>
+                </div>
             </div>
         </div>
     );

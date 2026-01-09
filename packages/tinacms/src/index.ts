@@ -11,6 +11,7 @@ export { TinaAdmin } from './admin';
 export { RouteMappingPlugin } from './admin/plugins/route-mapping';
 export { TinaAdminApi } from './admin/api';
 export { ErrorDialog } from './admin/components/ErrorDialog';
+export { EmbeddedChatbot } from './toolkit/form-builder/EmbeddedChatbot';
 
 export * from './toolkit';
 export { Form } from './toolkit/forms/form';

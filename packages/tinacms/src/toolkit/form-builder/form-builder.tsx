@@ -1,4 +1,4 @@
-import type { Form } from '@toolkit/forms';
+import type { Form, Field } from '@toolkit/forms';
 import * as React from 'react';
 import { type FC, useEffect } from 'react';
 import { Form as FinalForm } from 'react-final-form';
@@ -19,7 +19,13 @@ import { FormPortalProvider } from './form-portal';
 import { LoadingDots } from './loading-dots';
 import { ResetForm } from './reset-form';
 import { CreateBranchModal } from './create-branch-modal';
-import { EmbeddedChatbot } from './EmbeddedChatbot';
+import { EmbeddedChatbot, type EmbeddedChatbotContext } from './EmbeddedChatbot';
+
+declare global {
+  interface Window {
+    __TINACMS_CHATBOT_CONTEXTS?: EmbeddedChatbotContext[];
+  }
+}
 
 export interface FormBuilderProps {
   form: {
@@ -87,6 +93,94 @@ const FormKeyBindings: FC<FormKeyBindingsProps> = ({ onSubmit }) => {
   }, [onSubmit]);
 
   return null;
+};
+
+type ChatbotContextCandidate = {
+  id: string;
+  label: string;
+  description: string;
+  aliases: string[];
+};
+
+const CHATBOT_CONTEXT_CANDIDATES: ChatbotContextCandidate[] = [
+  {
+    id: 'excerpt',
+    label: 'Excerpt',
+    description: '1-2 sentence summary shown in listings.',
+    aliases: ['excerpt', 'summary', 'teaser'],
+  },
+  {
+    id: 'author',
+    label: 'Author',
+    description: 'Select the author of this post.',
+    aliases: ['author', 'writer', 'byline'],
+  },
+  {
+    id: 'postedDate',
+    label: 'Posted Date',
+    description: 'Date shown on the post.',
+    aliases: ['posteddate', 'posted date', 'publish date', 'published', 'date'],
+  },
+  {
+    id: 'tags',
+    label: 'Tags',
+    description: 'Post tags.',
+    aliases: ['tags', 'tag'],
+  },
+  {
+    id: 'body',
+    label: 'Body',
+    description: 'Main content of the post.',
+    aliases: ['body', 'content'],
+  },
+];
+
+const normalizeMatchKey = (value: string) =>
+  value.toLowerCase().replace(/\s+/g, '');
+
+const getValueAtPath = (values: Record<string, any>, path: string) => {
+  return path.split('.').reduce((acc: any, key) => {
+    if (acc === null || acc === undefined) return acc;
+    return acc[key];
+  }, values);
+};
+
+const buildChatbotContexts = (
+  fields: Field[] | undefined,
+  values: Record<string, any>
+): EmbeddedChatbotContext[] => {
+  if (!fields || !fields.length) return [];
+  const contexts: EmbeddedChatbotContext[] = [];
+
+  CHATBOT_CONTEXT_CANDIDATES.forEach((candidate) => {
+    const field = fields.find((item) => {
+      const nameKey = normalizeMatchKey(item.name);
+      const labelKey =
+        typeof item.label === 'string'
+          ? normalizeMatchKey(item.label)
+          : '';
+      return candidate.aliases.some(
+        (alias) =>
+          nameKey.includes(normalizeMatchKey(alias)) ||
+          labelKey.includes(normalizeMatchKey(alias))
+      );
+    });
+
+    const value = field
+      ? getValueAtPath(values, field.name)
+      : getValueAtPath(values, candidate.id);
+
+    if (field || value !== undefined) {
+      contexts.push({
+        id: candidate.id,
+        label: candidate.label,
+        description: field?.description || candidate.description,
+        value,
+      });
+    }
+  });
+
+  return contexts;
 };
 
 export const FormBuilder: FC<FormBuilderProps> = ({
@@ -171,8 +265,23 @@ export const FormBuilder: FC<FormBuilderProps> = ({
         submitting,
         dirtySinceLastSubmit,
         hasValidationErrors,
+        values,
       }) => {
         const usingProtectedBranch = cms.api.tina.usingProtectedBranch();
+        const chatbotContexts = buildChatbotContexts(
+          fieldGroup?.fields ?? tinaForm.fields,
+          (values as Record<string, any>) ?? tinaForm.values ?? {}
+        );
+
+        React.useEffect(() => {
+          if (typeof window === 'undefined') return;
+          window.__TINACMS_CHATBOT_CONTEXTS = chatbotContexts;
+          window.dispatchEvent(
+            new CustomEvent('tinacms-chatbot-contexts', {
+              detail: chatbotContexts,
+            })
+          );
+        }, [chatbotContexts]);
 
         const canSubmit =
           !pristine &&
@@ -211,13 +320,13 @@ export const FormBuilder: FC<FormBuilderProps> = ({
                 <FormWrapper id={tinaForm.id}>
                   {tinaForm?.fields.length ? (
                     <>
-                      <EmbeddedChatbot />
+                      <EmbeddedChatbot contexts={chatbotContexts} />
                       <FieldsBuilder
                         form={tinaForm}
                         hoveringFieldName={form.hoveringFieldName}
                         fields={fieldGroup.fields}
                       />
-                      <EmbeddedChatbot />
+                      <EmbeddedChatbot contexts={chatbotContexts} />
                     </>
                   ) : (
                     <NoFieldsPlaceholder />

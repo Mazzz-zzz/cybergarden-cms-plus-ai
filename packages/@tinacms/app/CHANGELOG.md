@@ -1,5 +1,16 @@
 # @tinacms/app
 
+## 2.4.0
+
+### Minor Changes
+
+- Add a draggable EmbeddedChatbot overlay in the preview iframe wrapper. Update the EmbeddedChatbot UI to use the existing shadcn-like design tokens/components (Input/Button) with a black/white palette, adjust container corner rounding for the drag handle integration, and add admin-driven context chips sourced from form fields.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - tinacms@3.3.0
+
 ## 2.3.19
 
 ### Patch Changes
