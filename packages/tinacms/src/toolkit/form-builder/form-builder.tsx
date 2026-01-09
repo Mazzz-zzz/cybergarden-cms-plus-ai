@@ -287,7 +287,7 @@ const ChatbotContextApplier = ({
   // Handler for tool-based apply_edit calls
   React.useEffect(() => {
     const toolHandler = (event: Event) => {
-      const detail = (event as CustomEvent<{ search: string; replace: string }>).detail;
+      const detail = (event as CustomEvent<{ search: string; replace: string; all?: boolean }>).detail;
       if (!detail?.search || typeof detail?.replace !== 'string') return;
 
       // Find the first rich-text or body field to apply to
@@ -327,13 +327,15 @@ const ChatbotContextApplier = ({
               : JSON.stringify(currentValue, null, 2);
         }
 
-        // Simple string replacement
+        // String replacement: use replaceAll if `all` flag is true
         if (!sourceText.includes(detail.search)) {
           console.warn('Tool apply_edit: Search text not found in field.');
           return;
         }
 
-        const patchedText = sourceText.replace(detail.search, detail.replace);
+        const patchedText = detail.all
+          ? sourceText.replaceAll(detail.search, detail.replace)
+          : sourceText.replace(detail.search, detail.replace);
 
         let nextValue;
         if (isRichText) {
@@ -362,6 +364,64 @@ const ChatbotContextApplier = ({
     window.addEventListener('tinacms-tool-apply-edit', toolHandler);
     return () =>
       window.removeEventListener('tinacms-tool-apply-edit', toolHandler);
+  }, [finalForm, fields]);
+
+  // Handler for tool-based rewrite_content calls
+  React.useEffect(() => {
+    const rewriteHandler = (event: Event) => {
+      const detail = (event as CustomEvent<{ newContent: string }>).detail;
+      if (typeof detail?.newContent !== 'string') return;
+
+      // Find the first rich-text or body field to apply to
+      const targetFieldName = fields?.find((f) =>
+        f.name.toLowerCase().includes('body') ||
+        (f as any).type === 'rich-text'
+      )?.name || fields?.[0]?.name;
+
+      if (!targetFieldName) {
+        console.warn('Tool rewrite_content: No target field found.');
+        return;
+      }
+
+      const currentValue = getValueAtPath(valuesRef.current, targetFieldName);
+      if (currentValue === undefined) return;
+
+      try {
+        const field = fields?.find((f) => f.name === targetFieldName);
+        const isRichText = (field as any)?.type === 'rich-text';
+
+        let nextValue;
+        if (isRichText) {
+          nextValue = parseMDX(
+            detail.newContent,
+            field as unknown as RichTextType,
+            (s) => s
+          );
+        } else {
+          nextValue = detail.newContent;
+        }
+
+        finalForm.change(targetFieldName, nextValue);
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('tinacms-external-field-update', {
+              detail: { fieldName: targetFieldName },
+            })
+          );
+        }, 0);
+      } catch (err: any) {
+        console.error('Tool rewrite_content error:', err);
+        window.dispatchEvent(
+          new CustomEvent('tinacms-chatbot-error', {
+            detail: { error: err.message || 'Failed to rewrite content.' },
+          })
+        );
+      }
+    };
+
+    window.addEventListener('tinacms-tool-rewrite-content', rewriteHandler);
+    return () =>
+      window.removeEventListener('tinacms-tool-rewrite-content', rewriteHandler);
   }, [finalForm, fields]);
 
   return null;

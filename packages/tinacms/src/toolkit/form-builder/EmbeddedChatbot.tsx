@@ -38,20 +38,42 @@ const APPLY_EDIT_TOOL = {
     type: 'function',
     function: {
         name: 'apply_edit',
-        description: 'Applies a search-and-replace edit to the current field content. Use this tool whenever the user asks you to edit, change, modify, or update the content.',
+        description: 'Applies a search-and-replace edit to the current field content. Use this for simple, targeted changes like replacing a word or phrase.',
         parameters: {
             type: 'object',
             properties: {
                 search: {
                     type: 'string',
-                    description: 'The exact text segment to find and replace. Must match existing content.',
+                    description: 'The exact text segment to find and replace.',
                 },
                 replace: {
                     type: 'string',
                     description: 'The new text to replace the search segment with.',
                 },
+                all: {
+                    type: 'boolean',
+                    description: 'If true, replace ALL occurrences. If false or omitted, replace only the first occurrence. Use true for bulk changes like "change all X to Y".',
+                },
             },
             required: ['search', 'replace'],
+        },
+    },
+};
+
+const REWRITE_CONTENT_TOOL = {
+    type: 'function',
+    function: {
+        name: 'rewrite_content',
+        description: 'Completely rewrites the field content. Use this for complex semantic transformations that cannot be done with simple search-replace, such as restructuring, renumbering items, or applying logic-based changes across the entire content.',
+        parameters: {
+            type: 'object',
+            properties: {
+                new_content: {
+                    type: 'string',
+                    description: 'The complete new content to replace the entire field with.',
+                },
+            },
+            required: ['new_content'],
         },
     },
 };
@@ -75,7 +97,12 @@ const buildSystemPrompt = (
     preview: string
 ) => {
     const base =
-        'You are a helpful TinaCMS editing assistant. When the user asks to edit, change, modify, or update content, you MUST use the `apply_edit` tool. Do NOT output raw text for edits. Only use the tool. For questions or clarifications, respond normally.';
+        `You are a helpful TinaCMS editing assistant. You have two tools for editing content:
+
+1. **apply_edit**: For simple, targeted changes (replace a word/phrase). Set 'all: true' to replace ALL occurrences.
+2. **rewrite_content**: For complex transformations (restructuring, renumbering, semantic changes across entire content).
+
+Always use the appropriate tool. Do NOT output raw text for edits. For questions, respond normally.`;
     if (!context) return base;
     const clipped = preview
         ? preview.slice(0, MAX_CONTEXT_CHARS)
@@ -628,7 +655,7 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                             systemPromptRef.current
                         ),
                         temperature: 0.3,
-                        tools: [APPLY_EDIT_TOOL],
+                        tools: [APPLY_EDIT_TOOL, REWRITE_CONTENT_TOOL],
                         tool_choice: 'auto',
                     }),
                     signal: abortSignal,
@@ -643,21 +670,41 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
 
                 // Check for tool calls
                 const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+
                 if (toolCall?.function?.name === 'apply_edit') {
                     try {
                         const args = JSON.parse(toolCall.function.arguments);
-                        const { search, replace } = args;
+                        const { search, replace, all } = args;
                         if (search && typeof replace === 'string') {
-                            // Dispatch the apply event
+                            // Dispatch the apply event with the 'all' flag
                             window.dispatchEvent(
                                 new CustomEvent('tinacms-tool-apply-edit', {
-                                    detail: { search, replace },
+                                    detail: { search, replace, all: Boolean(all) },
                                 })
                             );
-                            return { content: [{ type: 'text', text: `✓ Applied edit: replaced "${search.slice(0, 30)}..." with "${replace.slice(0, 30)}..."` }] };
+                            const allText = all ? ' (all occurrences)' : '';
+                            return { content: [{ type: 'text', text: `✓ Applied edit${allText}: replaced "${search.slice(0, 30)}..." with "${replace.slice(0, 30)}..."` }] };
                         }
                     } catch (e) {
                         console.error('Failed to parse apply_edit arguments:', e);
+                    }
+                }
+
+                if (toolCall?.function?.name === 'rewrite_content') {
+                    try {
+                        const args = JSON.parse(toolCall.function.arguments);
+                        const { new_content } = args;
+                        if (typeof new_content === 'string') {
+                            // Dispatch the rewrite event
+                            window.dispatchEvent(
+                                new CustomEvent('tinacms-tool-rewrite-content', {
+                                    detail: { newContent: new_content },
+                                })
+                            );
+                            return { content: [{ type: 'text', text: `✓ Rewrote content (${new_content.length} characters)` }] };
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse rewrite_content arguments:', e);
                     }
                 }
 
