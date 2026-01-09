@@ -16,6 +16,8 @@ type EmbeddedChatbotProps = {
     contexts?: EmbeddedChatbotContext[];
 };
 
+const OPENROUTER_KEY_STORAGE = 'tinacms.openrouterKey';
+
 const formatContextValue = (value: unknown) => {
     if (value === null || value === undefined || value === '') return '';
     if (typeof value === 'string') return value;
@@ -44,6 +46,29 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
 
     const selectedContext = contexts.find((item) => item.id === selectedId);
     const preview = formatContextValue(selectedContext?.value);
+    const [apiKey, setApiKey] = React.useState<string | undefined>(undefined);
+
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const stored =
+            window.__TINACMS_OPENROUTER_API_KEY ||
+            window.localStorage.getItem(OPENROUTER_KEY_STORAGE) ||
+            undefined;
+        setApiKey(stored || undefined);
+
+        const handler = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (typeof detail === 'string') {
+                setApiKey(detail);
+            } else if (!detail) {
+                setApiKey(undefined);
+            }
+        };
+        window.addEventListener('tinacms-openrouter-key', handler);
+        return () => window.removeEventListener('tinacms-openrouter-key', handler);
+    }, []);
+
+    const canSend = Boolean(apiKey);
 
     return (
         <div
@@ -121,6 +146,12 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                         type='button'
                         className='h-9 w-9 shrink-0 bg-foreground text-background hover:bg-foreground/90'
                         aria-label='Send message'
+                        disabled={!canSend}
+                        title={
+                            canSend
+                                ? 'Send'
+                                : 'Add an OpenRouter API key in AI Settings to enable.'
+                        }
                     >
                         <BiSend className='h-4 w-4' />
                     </Button>

@@ -33,6 +33,7 @@ import {
   HtmlFieldPlaceholder,
   MarkdownFieldPlaceholder,
 } from '@toolkit/plugin-fields/markdown';
+import { AiSettingsScreenPlugin } from '@toolkit/plugin-screens/ai-settings-screen';
 import { MediaManagerScreenPlugin } from '@toolkit/plugin-screens/media-manager-screen';
 import { PasswordScreenPlugin } from '@toolkit/plugin-screens/password-screen';
 import { createCloudConfig } from '@toolkit/react-cloud-config';
@@ -122,6 +123,7 @@ export class TinaCMS extends CMS {
         this.fields.add(field);
       }
     });
+    this.plugins.add(AiSettingsScreenPlugin);
     this.plugins.add(MediaManagerScreenPlugin);
     this.plugins.add(PasswordScreenPlugin);
     if (isLocalClient !== true) {
