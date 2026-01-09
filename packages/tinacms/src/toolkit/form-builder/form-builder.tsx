@@ -20,6 +20,8 @@ import { FormPortalProvider } from './form-portal';
 import { LoadingDots } from './loading-dots';
 import { ResetForm } from './reset-form';
 import { CreateBranchModal } from './create-branch-modal';
+import { serializeMDX, parseMDX } from '@tinacms/mdx';
+import type { RichTextType } from '@tinacms/schema-tools';
 import { EmbeddedChatbot, type EmbeddedChatbotContext } from './EmbeddedChatbot';
 
 declare global {
@@ -150,7 +152,7 @@ type ChatbotApplyDetail = {
   fieldName: string;
   patchText: string;
   proposedText?: string;
-  valueType?: 'text' | 'json';
+  valueType?: 'text' | 'json' | 'rich-text';
 };
 
 const applyPatchToValue = (
@@ -188,9 +190,11 @@ const coercePatchedValue = (
 const ChatbotContextApplier = ({
   finalForm,
   values,
+  fields,
 }: {
   finalForm: Form['finalForm'];
   values: Record<string, any>;
+  fields?: Field[];
 }) => {
   const valuesRef = React.useRef(values);
 
@@ -204,37 +208,161 @@ const ChatbotContextApplier = ({
       if (!detail?.fieldName || !detail?.patchText) return;
       const currentValue = getValueAtPath(valuesRef.current, detail.fieldName);
       if (currentValue === undefined || currentValue === null) return;
-      const sourceText =
-        typeof currentValue === 'string'
-          ? currentValue
-          : JSON.stringify(currentValue, null, 2);
-      const patchedText = applyPatchToValue(
-        sourceText,
-        detail.patchText,
-        detail.proposedText
-      );
-      const nextValue = coercePatchedValue(
-        currentValue,
-        patchedText,
-        detail.proposedText,
-        detail.valueType
-      );
-      if (nextValue !== currentValue) {
-        finalForm.change(detail.fieldName, nextValue);
-        // Defer dispatch to allow final-form to update state
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('tinacms-external-field-update', {
-              detail: { fieldName: detail.fieldName },
-            })
+
+      try {
+        const field = fields?.find((f) => f.name === detail.fieldName);
+        const isRichText =
+          detail.valueType === 'rich-text' && field?.type === 'rich-text';
+        let sourceText = '';
+        if (isRichText) {
+          // serializeMDX expects Plate AST
+          const serialized = serializeMDX(
+            currentValue,
+            field as unknown as RichTextType,
+            (s) => s
           );
-        }, 0);
+          sourceText =
+            typeof serialized === 'string'
+              ? serialized
+              : JSON.stringify(serialized || '');
+        } else {
+          sourceText =
+            typeof currentValue === 'string'
+              ? currentValue
+              : JSON.stringify(currentValue, null, 2);
+        }
+
+        const patchedText = applyPatchToValue(
+          sourceText,
+          detail.patchText,
+          detail.proposedText
+        );
+
+        let nextValue;
+        if (isRichText) {
+          nextValue = parseMDX(
+            patchedText,
+            field as unknown as RichTextType,
+            (s) => s
+          );
+        } else {
+          nextValue = coercePatchedValue(
+            currentValue,
+            patchedText,
+            detail.proposedText,
+            detail.valueType as 'text' | 'json'
+          );
+        }
+
+        // Check for changes (simplified)
+        const hasChanged = isRichText
+          ? sourceText !== patchedText
+          : nextValue !== currentValue;
+
+        if (hasChanged) {
+          finalForm.change(detail.fieldName, nextValue);
+          // Defer dispatch to allow final-form to update state
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('tinacms-external-field-update', {
+                detail: { fieldName: detail.fieldName },
+              })
+            );
+          }, 0);
+        }
+      } catch (err: any) {
+        console.error('Chatbot apply error:', err);
+        window.dispatchEvent(
+          new CustomEvent('tinacms-chatbot-error', {
+            detail: { error: err.message || 'Failed to apply change.' },
+          })
+        );
       }
     };
     window.addEventListener('tinacms-chatbot-apply-context', handler);
     return () =>
       window.removeEventListener('tinacms-chatbot-apply-context', handler);
-  }, [finalForm]);
+  }, [finalForm, fields]);
+
+  // Handler for tool-based apply_edit calls
+  React.useEffect(() => {
+    const toolHandler = (event: Event) => {
+      const detail = (event as CustomEvent<{ search: string; replace: string }>).detail;
+      if (!detail?.search || typeof detail?.replace !== 'string') return;
+
+      // Find the first rich-text or body field to apply to
+      // For now, we'll try 'body' or the first field
+      const targetFieldName = fields?.find((f) =>
+        f.name.toLowerCase().includes('body') ||
+        (f as any).type === 'rich-text'
+      )?.name || fields?.[0]?.name;
+
+      if (!targetFieldName) {
+        console.warn('Tool apply_edit: No target field found.');
+        return;
+      }
+
+      const currentValue = getValueAtPath(valuesRef.current, targetFieldName);
+      if (currentValue === undefined || currentValue === null) return;
+
+      try {
+        const field = fields?.find((f) => f.name === targetFieldName);
+        const isRichText = (field as any)?.type === 'rich-text';
+
+        let sourceText = '';
+        if (isRichText) {
+          const serialized = serializeMDX(
+            currentValue,
+            field as unknown as RichTextType,
+            (s) => s
+          );
+          sourceText =
+            typeof serialized === 'string'
+              ? serialized
+              : JSON.stringify(serialized || '');
+        } else {
+          sourceText =
+            typeof currentValue === 'string'
+              ? currentValue
+              : JSON.stringify(currentValue, null, 2);
+        }
+
+        // Simple string replacement
+        if (!sourceText.includes(detail.search)) {
+          console.warn('Tool apply_edit: Search text not found in field.');
+          return;
+        }
+
+        const patchedText = sourceText.replace(detail.search, detail.replace);
+
+        let nextValue;
+        if (isRichText) {
+          nextValue = parseMDX(
+            patchedText,
+            field as unknown as RichTextType,
+            (s) => s
+          );
+        } else {
+          nextValue = patchedText;
+        }
+
+        finalForm.change(targetFieldName, nextValue);
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('tinacms-external-field-update', {
+              detail: { fieldName: targetFieldName },
+            })
+          );
+        }, 0);
+      } catch (err: any) {
+        console.error('Tool apply_edit error:', err);
+      }
+    };
+
+    window.addEventListener('tinacms-tool-apply-edit', toolHandler);
+    return () =>
+      window.removeEventListener('tinacms-tool-apply-edit', toolHandler);
+  }, [finalForm, fields]);
 
   return null;
 };
@@ -265,16 +393,32 @@ const buildChatbotContexts = (
       : getValueAtPath(values, candidate.id);
 
     if (field || value !== undefined) {
+      let contextValue = value;
+      let valueType =
+        (field as any)?.type === 'rich-text' || (field as any)?.type === 'object'
+          ? 'json'
+          : 'text';
+
+      if ((field as any)?.type === 'rich-text') {
+        const serialized = serializeMDX(
+          value,
+          field as unknown as RichTextType,
+          (s) => s
+        );
+        contextValue =
+          typeof serialized === 'string'
+            ? serialized
+            : JSON.stringify(serialized || '');
+        valueType = 'rich-text';
+      }
+
       contexts.push({
         id: candidate.id,
         label: candidate.label,
         description: field?.description || candidate.description,
-        value,
+        value: contextValue,
         fieldName: field?.name,
-        valueType:
-          field?.type === 'rich-text' || field?.type === 'object'
-            ? 'json'
-            : 'text',
+        valueType: valueType as any,
       });
     }
   });
@@ -416,6 +560,7 @@ export const FormBuilder: FC<FormBuilderProps> = ({
             <ChatbotContextApplier
               finalForm={finalForm}
               values={(values as Record<string, any>) ?? {}}
+              fields={fieldGroup?.fields ?? tinaForm.fields}
             />
             <DragDropContext onDragEnd={moveArrayItem}>
               <FormKeyBindings onSubmit={safeHandleSubmit} />
