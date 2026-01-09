@@ -22,7 +22,7 @@ import { ResetForm } from './reset-form';
 import { CreateBranchModal } from './create-branch-modal';
 import { serializeMDX, parseMDX } from '@tinacms/mdx';
 import type { RichTextType } from '@tinacms/schema-tools';
-import { EmbeddedChatbot, type EmbeddedChatbotContext } from './EmbeddedChatbot';
+import { type EmbeddedChatbotContext } from './EmbeddedChatbot';
 
 declare global {
   interface Window {
@@ -627,13 +627,13 @@ export const FormBuilder: FC<FormBuilderProps> = ({
                 <FormWrapper id={tinaForm.id}>
                   {tinaForm?.fields.length ? (
                     <>
-                      <EmbeddedChatbot contexts={chatbotContexts} />
+
                       <FieldsBuilder
                         form={tinaForm}
                         hoveringFieldName={form.hoveringFieldName}
                         fields={fieldGroup.fields}
                       />
-                      <EmbeddedChatbot contexts={chatbotContexts} />
+
                     </>
                   ) : (
                     <NoFieldsPlaceholder />

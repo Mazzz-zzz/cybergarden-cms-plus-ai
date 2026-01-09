@@ -32,7 +32,9 @@ type EmbeddedChatbotProps = {
 const OPENROUTER_KEY_STORAGE = 'tinacms.openrouterKey';
 const OPENROUTER_MODEL_STORAGE = 'tinacms.openrouterModel';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_MODEL = 'openai/gpt-5.1-codex-mini';
+
+
 const MAX_CONTEXT_CHARS = 50000;
 
 const APPLY_EDIT_TOOL = {
@@ -778,7 +780,7 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
     return (
         <div
             className={cn(
-                'w-[320px] rounded-xl border border-border bg-background text-foreground shadow-sm',
+                'w-[320px] rounded-b-xl rounded-tl-none rounded-tr-xl border border-border bg-background text-foreground shadow-sm',
                 'overflow-hidden'
             )}
         >

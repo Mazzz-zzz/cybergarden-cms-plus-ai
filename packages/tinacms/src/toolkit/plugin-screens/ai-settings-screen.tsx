@@ -3,10 +3,9 @@ import { MdOutlineAutoAwesome } from 'react-icons/md';
 import { createScreen } from '@toolkit/react-screens';
 import { Button } from '@toolkit/components/ui/button';
 import { Input } from '@toolkit/components/ui/input';
-
 const OPENROUTER_KEY_STORAGE = 'tinacms.openrouterKey';
 const OPENROUTER_MODEL_STORAGE = 'tinacms.openrouterModel';
-const DEFAULT_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_MODEL = 'openai/gpt-5.1-codex-mini';
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 
 declare global {
@@ -63,8 +62,8 @@ const AiSettings = () => {
         }
         const ids = Array.isArray(data?.data)
           ? data.data
-              .map((item: any) => item?.id)
-              .filter((id: any) => typeof id === 'string')
+            .map((item: any) => item?.id)
+            .filter((id: any) => typeof id === 'string')
           : [];
         const unique = Array.from(new Set(ids));
         unique.sort();
