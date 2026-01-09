@@ -1,5 +1,19 @@
 # tinacms
 
+## 3.4.0
+
+### Minor Changes
+
+- Enhance AI chatbot with two-tier tool system:
+  - **`apply_edit`**: Targeted search-and-replace edits with new `all` parameter for bulk replacements (replaces all occurrences when true)
+  - **`rewrite_content`**: Complex semantic transformations that rewrite entire field content (for restructuring, renumbering, logic-based changes)
+  - Updated system prompt to guide LLM tool selection
+  - Proper error handling and event dispatch for both tools
+- **Chatbot UX Improvements**:
+  - **Reset Button**: Added a reset button to clear chat history and unlock context selection
+  - **Context Locking**: Context selection is now locked once a conversation starts to ensure focus
+  - **Context-Aware Edits**: Edits now explicitly target the currently selected context field, ensuring changes apply correctly even after switching contexts
+
 ## 3.3.0
 
 ### Minor Changes

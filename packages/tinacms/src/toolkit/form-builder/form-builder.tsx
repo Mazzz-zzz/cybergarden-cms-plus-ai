@@ -287,12 +287,11 @@ const ChatbotContextApplier = ({
   // Handler for tool-based apply_edit calls
   React.useEffect(() => {
     const toolHandler = (event: Event) => {
-      const detail = (event as CustomEvent<{ search: string; replace: string; all?: boolean }>).detail;
+      const detail = (event as CustomEvent<{ search: string; replace: string; all?: boolean; fieldName?: string }>).detail;
       if (!detail?.search || typeof detail?.replace !== 'string') return;
 
-      // Find the first rich-text or body field to apply to
-      // For now, we'll try 'body' or the first field
-      const targetFieldName = fields?.find((f) =>
+      // Use potentially provided fieldName, otherwise find the first rich-text or body field
+      const targetFieldName = detail.fieldName || fields?.find((f) =>
         f.name.toLowerCase().includes('body') ||
         (f as any).type === 'rich-text'
       )?.name || fields?.[0]?.name;
@@ -369,11 +368,11 @@ const ChatbotContextApplier = ({
   // Handler for tool-based rewrite_content calls
   React.useEffect(() => {
     const rewriteHandler = (event: Event) => {
-      const detail = (event as CustomEvent<{ newContent: string }>).detail;
+      const detail = (event as CustomEvent<{ newContent: string; fieldName?: string }>).detail;
       if (typeof detail?.newContent !== 'string') return;
 
-      // Find the first rich-text or body field to apply to
-      const targetFieldName = fields?.find((f) =>
+      // Use potentially provided fieldName, otherwise find the first rich-text or body field
+      const targetFieldName = detail.fieldName || fields?.find((f) =>
         f.name.toLowerCase().includes('body') ||
         (f as any).type === 'rich-text'
       )?.name || fields?.[0]?.name;

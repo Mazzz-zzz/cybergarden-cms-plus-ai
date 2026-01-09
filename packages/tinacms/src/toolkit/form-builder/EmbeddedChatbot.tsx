@@ -8,6 +8,7 @@ import {
     ThreadPrimitive,
     useLocalRuntime,
     useAssistantState,
+    useAssistantRuntime,
     type ChatModelAdapter,
     type ThreadMessage,
 } from '@assistant-ui/react';
@@ -557,10 +558,30 @@ const ChatApplyActions = ({ context, currentValue }: ChatApplyActionsProps) => {
     );
 };
 
+const ThreadResetter = () => {
+    const runtime = useAssistantRuntime();
+
+    React.useEffect(() => {
+        const handleReset = () => {
+            runtime.switchToNewThread();
+        };
+        window.addEventListener('tinacms-chatbot-reset', handleReset);
+        return () => {
+            window.removeEventListener('tinacms-chatbot-reset', handleReset);
+        };
+    }, [runtime]);
+
+    return null;
+};
+
 export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
+
+
     const [selectedId, setSelectedId] = React.useState<string | undefined>(
         contexts[0]?.id
     );
+    const [contextLocked, setContextLocked] = React.useState(false);
+    const lockedContextRef = React.useRef<string | undefined>(undefined);
 
     React.useEffect(() => {
         if (!contexts.length) return;
@@ -569,12 +590,38 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
         }
     }, [contexts, selectedId]);
 
-    const selectedContext = contexts.find((item) => item.id === selectedId);
+    // When context is locked, use the locked context; otherwise use selected
+    const activeContextId = contextLocked ? lockedContextRef.current : selectedId;
+    const selectedContext = contexts.find((item) => item.id === activeContextId);
     const preview = formatContextValue(selectedContext?.value);
     const systemPrompt = React.useMemo(
         () => buildSystemPrompt(selectedContext, preview),
         [selectedContext, preview]
     );
+    const selectedContextRef = React.useRef(selectedContext);
+
+    React.useEffect(() => {
+        selectedContextRef.current = selectedContext;
+    }, [selectedContext]);
+
+    const handleReset = () => {
+        // Dispatch event for ThreadResetter to call switchToNewThread
+        window.dispatchEvent(new CustomEvent('tinacms-chatbot-reset'));
+        setContextLocked(false);
+        lockedContextRef.current = undefined;
+    };
+
+    // Lock context when first message is sent (detected via custom event)
+    React.useEffect(() => {
+        const handleMessageSent = () => {
+            if (!contextLocked && selectedId) {
+                lockedContextRef.current = selectedId;
+                setContextLocked(true);
+            }
+        };
+        window.addEventListener('tinacms-chatbot-message-sent', handleMessageSent);
+        return () => window.removeEventListener('tinacms-chatbot-message-sent', handleMessageSent);
+    }, [contextLocked, selectedId]);
 
     const [apiKey, setApiKey] = React.useState<string | undefined>(undefined);
     const [model, setModel] = React.useState<string>(DEFAULT_MODEL);
@@ -632,6 +679,9 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
     const adapter = React.useMemo<ChatModelAdapter>(() => {
         return {
             async run({ messages, abortSignal }) {
+                // Signal that a message is being sent (for context locking)
+                window.dispatchEvent(new CustomEvent('tinacms-chatbot-message-sent'));
+
                 const key = apiKeyRef.current;
                 if (!key) {
                     throw new Error('Missing OpenRouter API key.');
@@ -679,7 +729,12 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                             // Dispatch the apply event with the 'all' flag
                             window.dispatchEvent(
                                 new CustomEvent('tinacms-tool-apply-edit', {
-                                    detail: { search, replace, all: Boolean(all) },
+                                    detail: {
+                                        search,
+                                        replace,
+                                        all: Boolean(all),
+                                        fieldName: selectedContextRef.current?.fieldName,
+                                    },
                                 })
                             );
                             const allText = all ? ' (all occurrences)' : '';
@@ -698,7 +753,10 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                             // Dispatch the rewrite event
                             window.dispatchEvent(
                                 new CustomEvent('tinacms-tool-rewrite-content', {
-                                    detail: { newContent: new_content },
+                                    detail: {
+                                        newContent: new_content,
+                                        fieldName: selectedContextRef.current?.fieldName,
+                                    },
                                 })
                             );
                             return { content: [{ type: 'text', text: `✓ Rewrote content (${new_content.length} characters)` }] };
@@ -731,7 +789,17 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                     </p>
                     <p className='text-sm font-medium text-foreground'>AI Assistant</p>
                 </div>
-                <span className='text-[11px] text-muted-foreground'>Beta</span>
+                <div className='flex items-center gap-2'>
+                    <button
+                        type='button'
+                        onClick={handleReset}
+                        className='text-[11px] text-muted-foreground transition-colors hover:text-foreground'
+                        title='Reset conversation and unlock context'
+                    >
+                        Reset
+                    </button>
+                    <span className='text-[11px] text-muted-foreground'>Beta</span>
+                </div>
             </div>
             {contexts.length ? (
                 <div className='px-4 pt-3'>
@@ -740,18 +808,20 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                     </p>
                     <div className='mt-2 flex flex-wrap gap-2'>
                         {contexts.map((item) => {
-                            const isActive = item.id === selectedId;
+                            const isActive = item.id === activeContextId;
                             return (
                                 <button
                                     key={item.id}
                                     type='button'
-                                    onClick={() => setSelectedId(item.id)}
+                                    onClick={() => !contextLocked && setSelectedId(item.id)}
                                     aria-pressed={isActive}
+                                    disabled={contextLocked}
                                     className={cn(
                                         'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                                         isActive
                                             ? 'border-foreground bg-foreground text-background'
-                                            : 'border-border bg-background text-foreground hover:bg-muted'
+                                            : 'border-border bg-background text-foreground hover:bg-muted',
+                                        contextLocked && 'opacity-50 cursor-not-allowed'
                                     )}
                                 >
                                     {item.label}
@@ -782,6 +852,7 @@ export const EmbeddedChatbot = ({ contexts = [] }: EmbeddedChatbotProps) => {
                     )}
                 </div>
                 <AssistantRuntimeProvider runtime={runtime}>
+                    <ThreadResetter />
                     <ThreadPrimitive.Root className='mt-3 flex h-[240px] flex-col'>
                         <ThreadPrimitive.Viewport className='flex-1 space-y-3 overflow-y-auto pr-1'>
                             <AssistantIf condition={({ thread }) => thread.isEmpty}>
